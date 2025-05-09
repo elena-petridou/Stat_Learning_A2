@@ -1,0 +1,157 @@
+---
+title: "Assignment_2_Stat_Learning"
+author: "Elena Petridou"
+date: "2025-05-09"
+output: pdf_document
+---
+
+
+```{r}
+library("xgboost")
+library(caret)
+```
+## Question 1: Select one supervised learning method from those that were discussed in weeks 7 and 8 for analyzing this dataset. The chosen method must be different from the ones in Assignment 1! Justify why you would select this method for this specific prediction problem. (Use max. 200-250 words.)
+WRITE IN OVERLEAF
+
+## Question 2: Now apply this method you selected to the dataset. Beforehand, randomly split the dataset into a training (n=1000) and test (n=500) dataset. Use your student number to set the seed of the random number generator.
+
+```{r}
+MH_data = read.table("MHpredict.csv", sep = ",", header = TRUE)
+head(MH_data)
+```
+```{r}
+MHdata = data.frame(anxiety_distype = ifelse(MH_data$disType == "anxiety disorder", 1, 0),
+                    depression_distype = ifelse(MH_data$disType == "depressive disorder", 1, 0),
+                    comorbid_distype = ifelse(MH_data$disType == "comorbid disorder", 1, 0),
+                    female = ifelse(MH_data$Sexe == "female", 1, 0),
+                    male = ifelse(MH_data$Sexe == "female", 0, 1),
+                    pedigree_yes = ifelse(MH_data$pedigree == "Yes", 1, 0),
+                    pedigree_no = ifelse(MH_data$pedigree == "Yes", 0, 1),
+                    alcohol_no = ifelse(MH_data$alcohol == "Yes", 0, 1),
+                    alcohol_yes = ifelse(MH_data$alcohol == "Yes", 1, 0),
+                    recurrent_mdd = ifelse(MH_data$bTypeDep == "Recurrent MDD", 1, 0)
+
+                    
+)
+```
+
+Creating dummy variables in order to turn data into a matrix
+```{r}
+first_onset_mdd = ifelse(MH_data$bTypeDep == "First onset MDD", 1, 0)
+dysthymia = ifelse(MH_data$bTypeDep == "Dysthymia", 1, 0)
+no_depression = ifelse(MH_data$bTypeDep == "No depressive disorder", 1, 0)
+soc_phob = ifelse(MH_data$bSocPhob == "Positive", 1, 0)
+gad = ifelse(MH_data$bGAD == "Positive", 1, 0)
+panic_disorder = ifelse(MH_data$bPanic == "Positive", 1, 0)
+agoraphobia = ifelse(MH_data$bAgo == "Positive", 1, 0)
+remission = ifelse(MH_data$RemDis == TRUE, 1, 0)
+general_pop_sample = ifelse(MH_data$sample == "General population", 1, 0)
+primary_care_sample = ifelse(MH_data$sample == "Primary care", 1, 0)
+special_care_sample = ifelse(MH_data$sample == "Specialised mental health care", 1, 0)
+antidepressants = ifelse(MH_data$ADuse == TRUE, 1, 0)
+receives_treatment = ifelse(MH_data$PsychTreat == TRUE, 1, 0)
+
+
+```
+
+```{r}
+MH_data$Sexe = as.factor(MH_data$Sexe)
+MH_data$pedigree = as.factor(MH_data$pedigree)
+MH_data$alcohol = as.factor(MH_data$alcohol)
+MH_data$bTypeDep = as.factor(MH_data$bTypeDep)
+MH_data$bSocPhob = as.factor(MH_data$bSocPhob)
+MH_data$bGAD = as.factor(MH_data$bGAD)
+MH_data$bPanic = as.factor(MH_data$bPanic)
+MH_data$bAgo = as.factor(MH_data$bAgo)
+MH_data$RemDis = as.factor(MH_data$RemDis)
+MH_data$sample = as.factor(MH_data$sample)
+MH_data$ADuse = as.factor(MH_data$ADuse)
+MH_data$PsychTreat = as.factor(MH_data$PsychTreat)
+summary(MH_data)
+
+```
+Split the data into training and test set
+
+```{r}
+set.seed(2029197)
+prob_training = 1000/nrow(MH_data)
+rand_sample = sample(c(TRUE, FALSE), prob = c(prob_training, 1-prob_training), replace = TRUE, size = nrow(MH_data))
+
+trainMH = MH_data[rand_sample == TRUE,]
+testMH = MH_data[rand_sample == FALSE,]
+```
+
+```{r}
+names(trainMH)
+```
+
+-----------------
+First, turn the data into a DMatrix (the datatype required by the XGboost package)
+```{r}
+matrix_preds_train = as.matrix(MH_data[, -21])
+matrix_y_train = as.numeric(MH_data[,"dep_sev_fu"])
+
+
+```
+
+```{r}
+MH_training_matrix = xgb.DMatrix(matrix_preds_train, label = matrix_y_train)
+
+cv = xgb.cv(data = MH_training_matrix, 
+            params = xgb.params(max_depth = 3,
+                                objective = "reg:squarederror",
+                                eval_metric = c("rmse", "mae")),
+            nfold = 10,
+            metrics = c("rmse", "mae")
+            )
+
+print(cv)
+
+```
+
+
+```{r}
+
+
+
+mod_boost = xgboost(x = trainMH[,-21], 
+                    y = trainMH[,"dep_sev_fu"],
+                    )
+```
+## Question 3: Justify your choice of the main model-fitting parameters. Thus, make a well-informed choice for a fixed value of each parameter and/or use cross-validation to set their values. Your answer should reflect understanding of what each parameter does. (Use max. 200-250 words.)
+
+## Question 4: Provide an interpretation of the resulting model:
+\item Describe which variables are most important in predicting the value of the outcome variable, and which measure(s) you used to determine their relative importance.
+\item Describe the effect of the most important variables (e.g., describe the shape and direction of the effect on the predictions and/or provide and discuss plots of the variables’ effects). (Use max. 150-200 words)
+\item Assess the predictive accuracy of the model using the test set.
+
+```{r cars}
+summary(cars)
+```
+
+
+
+------------------------------------------------------
+
+
+
+# LEFTOVER CODE
+
+
+**Fit an XG-boost tree ensemble using Caret**
+
+```{r}
+train_control = trainControl("cv", 10)
+cv_treeboost = train(dep_sev_fu ~ .,
+                 data = trainMH, method = "xgbTree",
+                 
+                 trControl = train_control, 
+                 preProcess = c("center", "scale"))
+```
+
+```{r}
+cv_treeboost$bestTune
+cv_treeboost$results
+
+
+```
