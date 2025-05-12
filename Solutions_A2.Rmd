@@ -17,90 +17,83 @@ WRITE IN OVERLEAF
 
 ```{r}
 MH_data = read.table("MHpredict.csv", sep = ",", header = TRUE)
-head(MH_data)
-```
-```{r}
-MHdata = data.frame(anxiety_distype = ifelse(MH_data$disType == "anxiety disorder", 1, 0),
-                    depression_distype = ifelse(MH_data$disType == "depressive disorder", 1, 0),
-                    comorbid_distype = ifelse(MH_data$disType == "comorbid disorder", 1, 0),
-                    female = ifelse(MH_data$Sexe == "female", 1, 0),
-                    male = ifelse(MH_data$Sexe == "female", 0, 1),
-                    pedigree_yes = ifelse(MH_data$pedigree == "Yes", 1, 0),
-                    pedigree_no = ifelse(MH_data$pedigree == "Yes", 0, 1),
-                    alcohol_no = ifelse(MH_data$alcohol == "Yes", 0, 1),
-                    alcohol_yes = ifelse(MH_data$alcohol == "Yes", 1, 0),
-                    recurrent_mdd = ifelse(MH_data$bTypeDep == "Recurrent MDD", 1, 0)
-
-                    
-)
-```
-
-Creating dummy variables in order to turn data into a matrix
-```{r}
-first_onset_mdd = ifelse(MH_data$bTypeDep == "First onset MDD", 1, 0)
-dysthymia = ifelse(MH_data$bTypeDep == "Dysthymia", 1, 0)
-no_depression = ifelse(MH_data$bTypeDep == "No depressive disorder", 1, 0)
-soc_phob = ifelse(MH_data$bSocPhob == "Positive", 1, 0)
-gad = ifelse(MH_data$bGAD == "Positive", 1, 0)
-panic_disorder = ifelse(MH_data$bPanic == "Positive", 1, 0)
-agoraphobia = ifelse(MH_data$bAgo == "Positive", 1, 0)
-remission = ifelse(MH_data$RemDis == TRUE, 1, 0)
-general_pop_sample = ifelse(MH_data$sample == "General population", 1, 0)
-primary_care_sample = ifelse(MH_data$sample == "Primary care", 1, 0)
-special_care_sample = ifelse(MH_data$sample == "Specialised mental health care", 1, 0)
-antidepressants = ifelse(MH_data$ADuse == TRUE, 1, 0)
-receives_treatment = ifelse(MH_data$PsychTreat == TRUE, 1, 0)
-
+nrow(MH_data)
 
 ```
 
 ```{r}
-MH_data$Sexe = as.factor(MH_data$Sexe)
-MH_data$pedigree = as.factor(MH_data$pedigree)
-MH_data$alcohol = as.factor(MH_data$alcohol)
-MH_data$bTypeDep = as.factor(MH_data$bTypeDep)
-MH_data$bSocPhob = as.factor(MH_data$bSocPhob)
-MH_data$bGAD = as.factor(MH_data$bGAD)
-MH_data$bPanic = as.factor(MH_data$bPanic)
-MH_data$bAgo = as.factor(MH_data$bAgo)
-MH_data$RemDis = as.factor(MH_data$RemDis)
-MH_data$sample = as.factor(MH_data$sample)
-MH_data$ADuse = as.factor(MH_data$ADuse)
-MH_data$PsychTreat = as.factor(MH_data$PsychTreat)
-summary(MH_data)
 
+check_type_col = function(col){
+  if (typeof(MH_data[,col]) == "character"){
+    return(col)
+  }
+}
+
+char_vars = lapply(names(MH_data), check_type_col)
+as.character(char_vars[char_vars != "NULL"])
 ```
-Split the data into training and test set
 
+```{r}
+subs = c("disType", "Sexe")
+MH_data[,char_vars]
+```
+
+
+```{r}
+
+convert_vars = function(column){
+  return(as.numeric(as.factor(column)))
+}
+
+apply(MH_data[,char_vars], FUN = convert_vars, MARGIN = 2)
+
+MH_data
+```
+
+```{r}
+sapply(MH_data[,c("disType", )])
+
+MHdata = data.frame(disType = as.numeric(as.factor(MH_data$disType)),
+                    Sexe = as.numeric(as.factor(MH_data$Sexe)),
+                    pedigree = as.numeric(as.factor(MH_data$pedigree)),
+                    alcohol = as.numeric(as.factor(MH_data$pedigree)),
+                    )
+
+MHdata
+```
+
+Split data into training and test set
 ```{r}
 set.seed(2029197)
-prob_training = 1000/nrow(MH_data)
-rand_sample = sample(c(TRUE, FALSE), prob = c(prob_training, 1-prob_training), replace = TRUE, size = nrow(MH_data))
+prob_training = 1000/nrow(MHdata)
+rand_sample = sample(c(TRUE, FALSE), prob = c(prob_training, 1-prob_training), replace = TRUE, size = nrow(MHdata))
 
-trainMH = MH_data[rand_sample == TRUE,]
-testMH = MH_data[rand_sample == FALSE,]
+trainMH = MHdata[rand_sample == TRUE,]
+testMH = MHdata[rand_sample == FALSE,]
 ```
 
-```{r}
-names(trainMH)
-```
 
------------------
-First, turn the data into a DMatrix (the datatype required by the XGboost package)
+Turn the data into a DMatrix (the datatype required by the XGboost package)
 ```{r}
-matrix_preds_train = as.matrix(MH_data[, -21])
+matrix_preds_train = as.matrix(MHdata)
 matrix_y_train = as.numeric(MH_data[,"dep_sev_fu"])
-
 
 ```
 
 ```{r}
 MH_training_matrix = xgb.DMatrix(matrix_preds_train, label = matrix_y_train)
 
+hyperparameters_xgb = list("eta": c(0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1),
+                           "max_depth": seq(3,7),
+                           "gamma": seq(0,20, by = 5)
+                           )
+
 cv = xgb.cv(data = MH_training_matrix, 
-            params = xgb.params(max_depth = 3,
-                                objective = "reg:squarederror",
-                                eval_metric = c("rmse", "mae")),
+            params = list(max_depth = 3,
+                          objective = "reg:squarederror",
+                          eval_metric = c("rmse", "mae")),
+            nrounds = 200,
+            early_stopping_rounds = 10,
             nfold = 10,
             metrics = c("rmse", "mae")
             )
@@ -108,7 +101,10 @@ cv = xgb.cv(data = MH_training_matrix,
 print(cv)
 
 ```
+```{r}
+cv$params
 
+```
 
 ```{r}
 
@@ -136,6 +132,41 @@ summary(cars)
 
 
 # LEFTOVER CODE
+
+Creating dummy variables in order to turn data into a matrix
+```{r}
+MHdata = data.frame(anxiety_distype = ifelse(MH_data$disType == "anxiety disorder", 1, 0),
+                    depression_distype = ifelse(MH_data$disType == "depressive disorder", 1, 0),
+                    comorbid_distype = ifelse(MH_data$disType == "comorbid disorder", 1, 0),
+                    female = ifelse(MH_data$Sexe == "female", 1, 0),
+                    male = ifelse(MH_data$Sexe == "female", 0, 1),
+                    pedigree_yes = ifelse(MH_data$pedigree == "Yes", 1, 0),
+                    pedigree_no = ifelse(MH_data$pedigree == "Yes", 0, 1),
+                    alcohol_no = ifelse(MH_data$alcohol == "Yes", 0, 1),
+                    alcohol_yes = ifelse(MH_data$alcohol == "Yes", 1, 0),
+                    recurrent_mdd = ifelse(MH_data$bTypeDep == "Recurrent MDD", 1, 0),
+                    first_onset_mdd = ifelse(MH_data$bTypeDep == "First onset MDD", 1, 0),
+                    dysthymia = ifelse(MH_data$bTypeDep == "Dysthymia", 1, 0),
+                    no_depression = ifelse(MH_data$bTypeDep == "No depressive disorder", 1, 0),
+                    soc_phob = ifelse(MH_data$bSocPhob == "Positive", 1, 0),
+                    gad = ifelse(MH_data$bGAD == "Positive", 1, 0),
+                    panic_disorder = ifelse(MH_data$bPanic == "Positive", 1, 0),
+                    agoraphobia = ifelse(MH_data$bAgo == "Positive", 1, 0),
+                    remission = ifelse(MH_data$RemDis == TRUE, 1, 0),
+                    general_pop_sample = ifelse(MH_data$sample == "General population", 1, 0),
+                    primary_care_sample = ifelse(MH_data$sample == "Primary care", 1, 0),
+                    special_care_sample = ifelse(MH_data$sample == "Specialised mental health care", 1, 0),
+                    antidepressants = ifelse(MH_data$ADuse == TRUE, 1, 0),
+                    receives_treatment = ifelse(MH_data$PsychTreat == TRUE, 1, 0),
+                    age = MH_data$Age,
+                    educ_years = MH_data$aedu,
+                    IDS = MH_data$IDS,
+                    BAI = MH_data$BAI, 
+                    FQ = MH_data$FQ,
+                    LCImax = MH_data$LCImax,
+                    age_onset = MH_data$AO
+)
+```
 
 
 **Fit an XG-boost tree ensemble using Caret**
