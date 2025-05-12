@@ -17,10 +17,10 @@ WRITE IN OVERLEAF
 
 ```{r}
 MH_data = read.table("MHpredict.csv", sep = ",", header = TRUE)
-nrow(MH_data)
+summary(MH_data)
 
 ```
-
+Turn character variables into factors with numeric levels
 ```{r}
 
 check_type_col = function(col){
@@ -30,91 +30,79 @@ check_type_col = function(col){
 }
 
 char_vars = lapply(names(MH_data), check_type_col)
-as.character(char_vars[char_vars != "NULL"])
+char_vars = unlist(as.character(char_vars[char_vars != "NULL"]))
 ```
 
 ```{r}
-subs = c("disType", "Sexe")
-MH_data[,char_vars]
-```
-
-
-```{r}
-
 convert_vars = function(column){
   return(as.numeric(as.factor(column)))
 }
 
-apply(MH_data[,char_vars], FUN = convert_vars, MARGIN = 2)
+MH_data[char_vars] = lapply(MH_data[,char_vars], FUN = convert_vars)
 
 MH_data
-```
-
-```{r}
-sapply(MH_data[,c("disType", )])
-
-MHdata = data.frame(disType = as.numeric(as.factor(MH_data$disType)),
-                    Sexe = as.numeric(as.factor(MH_data$Sexe)),
-                    pedigree = as.numeric(as.factor(MH_data$pedigree)),
-                    alcohol = as.numeric(as.factor(MH_data$pedigree)),
-                    )
-
-MHdata
 ```
 
 Split data into training and test set
 ```{r}
 set.seed(2029197)
-prob_training = 1000/nrow(MHdata)
-rand_sample = sample(c(TRUE, FALSE), prob = c(prob_training, 1-prob_training), replace = TRUE, size = nrow(MHdata))
+prob_training = 1000/nrow(MH_data)
+rand_sample = sample(c(TRUE, FALSE), prob = c(prob_training, 1-prob_training), replace = TRUE, size = nrow(MH_data))
 
-trainMH = MHdata[rand_sample == TRUE,]
-testMH = MHdata[rand_sample == FALSE,]
+trainMH = MH_data[rand_sample == TRUE,]
+testMH = MH_data[rand_sample == FALSE,]
 ```
 
+## Question 3: Justify your choice of the main model-fitting parameters. Thus, make a well-informed choice for a fixed value of each parameter and/or use cross-validation to set their values. Your answer should reflect understanding of what each parameter does. (Use max. 200-250 words.)
 
-Turn the data into a DMatrix (the datatype required by the XGboost package)
 ```{r}
-matrix_preds_train = as.matrix(MHdata)
+matrix_preds_train = as.matrix(MH_data)
 matrix_y_train = as.numeric(MH_data[,"dep_sev_fu"])
 
 ```
 
 ```{r}
-MH_training_matrix = xgb.DMatrix(matrix_preds_train, label = matrix_y_train)
-
-hyperparameters_xgb = list("eta": c(0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1),
-                           "max_depth": seq(3,7),
-                           "gamma": seq(0,20, by = 5)
+hyperparameters_xgb = expand.grid(eta= c(0.01, 0.05, 0.1, 0.4),
+                           max_depth= seq(3,7),
+                           gamma= c(0, 5, 10, 20),
+                           nrounds = 200,
+                           min_child_weight = 1,
+                           colsample_bytree = 1,
+                           subsample = 1
                            )
 
-cv = xgb.cv(data = MH_training_matrix, 
-            params = list(max_depth = 3,
-                          objective = "reg:squarederror",
-                          eval_metric = c("rmse", "mae")),
-            nrounds = 200,
-            early_stopping_rounds = 10,
-            nfold = 10,
-            metrics = c("rmse", "mae")
-            )
+cv = train(x = matrix_preds_train,
+           y = matrix_y_train,
+           method = "xgbTree",
+           trControl = trainControl(method = "cv",
+                                    number = 10,
+                                    search = "grid"),
+           tuneGrid = hyperparameters_xgb
+           )
 
 print(cv)
 
 ```
+Turn the data into a DMatrix (the datatype required by the XGboost package)
 ```{r}
-cv$params
+MH_training_matrix = xgb.DMatrix(matrix_preds_train, label = matrix_y_train)
+```
+
+Extract best hyperparameters from CV
+```{r}
 
 ```
 
+Train final model on all the training data
+
 ```{r}
-
-
 
 mod_boost = xgboost(x = trainMH[,-21], 
                     y = trainMH[,"dep_sev_fu"],
                     )
 ```
-## Question 3: Justify your choice of the main model-fitting parameters. Thus, make a well-informed choice for a fixed value of each parameter and/or use cross-validation to set their values. Your answer should reflect understanding of what each parameter does. (Use max. 200-250 words.)
+
+
 
 ## Question 4: Provide an interpretation of the resulting model:
 \item Describe which variables are most important in predicting the value of the outcome variable, and which measure(s) you used to determine their relative importance.
