@@ -53,13 +53,15 @@ trainMH = MH_data[rand_sample == TRUE,]
 testMH = MH_data[rand_sample == FALSE,]
 ```
 
+
 ## Question 3: Justify your choice of the main model-fitting parameters. Thus, make a well-informed choice for a fixed value of each parameter and/or use cross-validation to set their values. Your answer should reflect understanding of what each parameter does. (Use max. 200-250 words.)
 
 ```{r}
-matrix_preds_train = as.matrix(MH_data)
-matrix_y_train = as.numeric(MH_data[,"dep_sev_fu"])
+matrix_preds_train = as.matrix(trainMH[,-21])
+matrix_y_train = as.numeric(trainMH[,"dep_sev_fu"])
 
 ```
+
 
 ```{r}
 hyperparameters_xgb = expand.grid(eta= c(0.01, 0.05, 0.1, 0.4),
@@ -83,26 +85,68 @@ cv = train(x = matrix_preds_train,
 print(cv)
 
 ```
-Turn the data into a DMatrix (the datatype required by the XGboost package)
-```{r}
-MH_training_matrix = xgb.DMatrix(matrix_preds_train, label = matrix_y_train)
-```
 
 Extract best hyperparameters from CV
 ```{r}
+cv$results[order(cv$results$RMSE), ]
+```
+
+```{r}
+final_xgboost = train(x = matrix_preds_train,
+                      y = matrix_y_train,
+                      trControl = trainControl(method = "none"),
+                      method = "xgbTree",
+                      tuneGrid = data.frame(cv$bestTune)
+                      )
+```
+
+```{r}
+matrix_y_test = as.numeric(testMH[,"dep_sev_fu"])
+
+final_boost_preds = predict(final_xgboost, newdata = testMH)
+postResample(final_boost_preds, testMH$dep_sev_fu)
 
 ```
 
+####### OPTION 2 ###########
+Turn data into xgb.DMatrix which is required by the XGBoost library
+```{r}
+d_mat_MH_data = xgb.DMatrix(data = as.matrix(trainMH[,-21]),
+                            label = as.array(trainMH[,"dep_sev_fu"])
+                            )
+
+test_mat_MH_data = xgb.DMatrix(data = as.matrix(testMH[,-21]),
+                            label = as.array(testMH[,"dep_sev_fu"])
+                            )
+```
+
+
 Train final model on all the training data
+```{r}
+final_boost = xgb.train(data = d_mat_MH_data,
+                        nrounds = 200,
+                        nthread = 3, 
+                        max_depth = 4, 
+                        eta = 0.1,
+                        gamma = 0, 
+                        colsample_bytree = 1,
+                        min_child_weight = 1, 
+                        subsample = 1
+                        )
+```
+
+
+```{r}
+final_boost_preds = predict(final_boost, newdata = test_mat_MH_data, type = "response")
+```
 
 ```{r}
 
-mod_boost = xgboost(x = trainMH[,-21], 
-                    y = trainMH[,"dep_sev_fu"],
-                    )
 ```
 
-
+```{r}
+final_boost_preds
+```
 
 ## Question 4: Provide an interpretation of the resulting model:
 \item Describe which variables are most important in predicting the value of the outcome variable, and which measure(s) you used to determine their relative importance.
