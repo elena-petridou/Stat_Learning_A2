@@ -86,6 +86,55 @@ print(cv)
 
 ```
 
+
+
+## Question 4: Provide an interpretation of the resulting model:
+\item Describe which variables are most important in predicting the value of the outcome variable, and which measure(s) you used to determine their relative importance.
+
+\item Describe the effect of the most important variables (e.g., describe the shape and direction of the effect on the predictions and/or provide and discuss plots of the variables’ effects). (Use max. 150-200 words)
+
+Turn data into xgb.DMatrix which is required by the XGBoost library
+```{r}
+d_mat_MH_data = xgb.DMatrix(data = as.matrix(trainMH[,-21]),
+                            label = as.array(trainMH[,"dep_sev_fu"])
+                            )
+
+test_mat_MH_data = xgb.DMatrix(data = as.matrix(testMH[,-21]),
+                            label = as.array(testMH[,"dep_sev_fu"])
+                            )
+```
+
+
+Train final model on all the training data
+```{r}
+final_boost = xgboost(data = d_mat_MH_data,
+                        nrounds = 200,
+                        nthread = 3, 
+                        max_depth = 4, 
+                        eta = 0.1,
+                        gamma = 0, 
+                        colsample_bytree = 1,
+                        min_child_weight = 1, 
+                        subsample = 1
+                        )
+```
+
+
+```{r}
+test_normal_matrix = as.matrix(testMH)
+  
+  
+xgb.ggplot.shap.summary(
+  test_normal_matrix,
+  top_n = 10,
+  model = final_boost
+)
+```
+
+
+
+\item Assess the predictive accuracy of the model using the test set.
+
 Extract best hyperparameters from CV
 ```{r}
 cv$results[order(cv$results$RMSE), ]
@@ -108,32 +157,11 @@ postResample(final_boost_preds, testMH$dep_sev_fu)
 
 ```
 
+
+
+
+
 ####### OPTION 2 ###########
-Turn data into xgb.DMatrix which is required by the XGBoost library
-```{r}
-d_mat_MH_data = xgb.DMatrix(data = as.matrix(trainMH[,-21]),
-                            label = as.array(trainMH[,"dep_sev_fu"])
-                            )
-
-test_mat_MH_data = xgb.DMatrix(data = as.matrix(testMH[,-21]),
-                            label = as.array(testMH[,"dep_sev_fu"])
-                            )
-```
-
-
-Train final model on all the training data
-```{r}
-final_boost = xgb.train(data = d_mat_MH_data,
-                        nrounds = 200,
-                        nthread = 3, 
-                        max_depth = 4, 
-                        eta = 0.1,
-                        gamma = 0, 
-                        colsample_bytree = 1,
-                        min_child_weight = 1, 
-                        subsample = 1
-                        )
-```
 
 
 ```{r}
@@ -148,10 +176,6 @@ final_boost_preds = predict(final_boost, newdata = test_mat_MH_data, type = "res
 final_boost_preds
 ```
 
-## Question 4: Provide an interpretation of the resulting model:
-\item Describe which variables are most important in predicting the value of the outcome variable, and which measure(s) you used to determine their relative importance.
-\item Describe the effect of the most important variables (e.g., describe the shape and direction of the effect on the predictions and/or provide and discuss plots of the variables’ effects). (Use max. 150-200 words)
-\item Assess the predictive accuracy of the model using the test set.
 
 ```{r cars}
 summary(cars)
