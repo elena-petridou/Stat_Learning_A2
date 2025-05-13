@@ -7,8 +7,11 @@ output: pdf_document
 
 
 ```{r}
-library("xgboost")
+library(xgboost)
+library(ggplot2)
 library(caret)
+library(tidyr)
+library(dplyr)
 ```
 ## Question 1: Select one supervised learning method from those that were discussed in weeks 7 and 8 for analyzing this dataset. The chosen method must be different from the ones in Assignment 1! Justify why you would select this method for this specific prediction problem. (Use max. 200-250 words.)
 WRITE IN OVERLEAF
@@ -20,6 +23,50 @@ MH_data = read.table("MHpredict.csv", sep = ",", header = TRUE)
 summary(MH_data)
 
 ```
+Re-produce the interaction plots from Assignment 1 for the report 
+```{r}
+# Set colours for all variables
+graph_cols <- list("Sex of the patient" = c("female" = "plum2",
+                                            "male" = "lightskyblue2"),
+                    "Disorder Type" = c("anxiety disorder" = "palegreen3",
+                                        "depressive disorder" = "wheat1", 
+                                        "comorbid disorder" = "mediumorchid"), 
+                   "Subtype of Depression" = c("Recurrent MDD" = "violetred2",
+                                               "First onset MDD" = "mediumblue",
+                                               "Dysthymia" = "khaki1",
+                                               "No depressive disorder" = "palegreen3")
+                   )
+
+
+
+make_interaction_plot = function (numeric_var, factor_var, name_numeric, name_factor){
+  ggplot(MH_data, aes(x = numeric_var, y = dep_sev_fu, color = factor_var)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm") +
+  labs(title = paste("Interaction between ",
+                     name_numeric, 
+                     " and ", 
+                     name_factor, sep = ""),
+       x = name_numeric,
+       y = name_factor) +
+    theme_light()+
+  scale_color_manual(values = graph_cols[[name_factor]])
+
+}
+
+make_interaction_plot(MH_data$AO, MH_data$bTypeDep, 
+                      "Age at onset of the disorder",
+                      "Subtype of Depression")
+
+make_interaction_plot(MH_data$IDS, MH_data$disType, 
+                      "Test score on the Inventory of Depressive Symptomatology", 
+                      "Disorder Type")
+
+```
+
+
+
+
 Turn character variables into factors with numeric levels
 ```{r}
 
@@ -91,7 +138,7 @@ print(cv)
 ## Question 4: Provide an interpretation of the resulting model:
 \item Describe which variables are most important in predicting the value of the outcome variable, and which measure(s) you used to determine their relative importance.
 
-\item Describe the effect of the most important variables (e.g., describe the shape and direction of the effect on the predictions and/or provide and discuss plots of the variables’ effects). (Use max. 150-200 words)
+In order to assess performance, first we need to train the best performing tuned model on all the training data and apply it to all the test data.
 
 Turn data into xgb.DMatrix which is required by the XGBoost library
 ```{r}
@@ -105,14 +152,16 @@ test_mat_MH_data = xgb.DMatrix(data = as.matrix(testMH[,-21]),
 ```
 
 
+
+
 Train final model on all the training data
 ```{r}
-final_boost = xgboost(data = d_mat_MH_data,
+final_boost = xgb.train(data = d_mat_MH_data,
                         nrounds = 200,
                         nthread = 3, 
-                        max_depth = 4, 
-                        eta = 0.1,
-                        gamma = 0, 
+                        max_depth = 3, 
+                        eta = 0.05,
+                        gamma = 5, 
                         colsample_bytree = 1,
                         min_child_weight = 1, 
                         subsample = 1
@@ -120,18 +169,40 @@ final_boost = xgboost(data = d_mat_MH_data,
 ```
 
 
+
+Extract the most important features using the XGBoost package.
 ```{r}
-test_normal_matrix = as.matrix(testMH)
-  
-  
-xgb.ggplot.shap.summary(
-  test_normal_matrix,
-  top_n = 10,
-  model = final_boost
-)
+feature_importances = xgb.importance(model = final_boost)
+feature_importances
+```
+
+```{r}
+sum(feature_importances$Frequency)
+sum(feature_importances$Gain)
+sum(feature_importances$Cover)
+
 ```
 
 
+\item Describe the effect of the most important variables (e.g., describe the shape and direction of the effect on the predictions and/or provide and discuss plots of the variables’ effects). (Use max. 150-200 words)
+
+```{r}
+test_normal_matrix = as.matrix(MH_data[,-21])
+```
+
+
+```{r}
+xgb.plot.shap(test_normal_matrix,
+              top_n = 2,
+              model = final_boost
+              )
+
+xgb.plot.shap(test_normal_matrix,
+              features = c("LCImax", "Age", "disType"),
+              model = final_boost
+              )
+
+```
 
 \item Assess the predictive accuracy of the model using the test set.
 
@@ -140,26 +211,29 @@ Extract best hyperparameters from CV
 cv$results[order(cv$results$RMSE), ]
 ```
 
+Use final model to produce some predictions
 ```{r}
-final_xgboost = train(x = matrix_preds_train,
-                      y = matrix_y_train,
-                      trControl = trainControl(method = "none"),
-                      method = "xgbTree",
-                      tuneGrid = data.frame(cv$bestTune)
-                      )
-```
-
-```{r}
-matrix_y_test = as.numeric(testMH[,"dep_sev_fu"])
-
-final_boost_preds = predict(final_xgboost, newdata = testMH)
+final_boost_preds = predict(final_boost, newdata = test_mat_MH_data, type = "response")
 postResample(final_boost_preds, testMH$dep_sev_fu)
+```
+
+
+```{r}
+xg_boost_preds = 
 
 ```
 
 
 
+```{r}
+SHAP_plot_numeric$colour
 
+```
+
+
+
+# LEFTOVER CODE
+--------------------------------------------------------------------------------------------
 
 ####### OPTION 2 ###########
 
@@ -182,12 +256,6 @@ summary(cars)
 ```
 
 
-
-------------------------------------------------------
-
-
-
-# LEFTOVER CODE
 
 Creating dummy variables in order to turn data into a matrix
 ```{r}
