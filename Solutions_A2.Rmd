@@ -12,6 +12,7 @@ library(ggplot2)
 library(caret)
 library(tidyr)
 library(dplyr)
+library(glmnet)
 ```
 ## Question 1: Select one supervised learning method from those that were discussed in weeks 7 and 8 for analyzing this dataset. The chosen method must be different from the ones in Assignment 1! Justify why you would select this method for this specific prediction problem. (Use max. 200-250 words.)
 WRITE IN OVERLEAF
@@ -20,6 +21,7 @@ WRITE IN OVERLEAF
 
 ```{r}
 MH_data = read.table("MHpredict.csv", sep = ",", header = TRUE)
+
 summary(MH_data)
 
 ```
@@ -218,18 +220,79 @@ postResample(final_boost_preds, testMH$dep_sev_fu)
 ```
 
 
+## Question 6:  Based on 3-5: Provide a short overall conclusion regarding which predictors are related to the outcome and which model you would recommend and why.
+
+In order to compare feature importance between LASSO and XGBoost, it may be nice to re-run the model to ensure reproducibility of the coefficient importance values tabulated in the report.
+
+First, we need the original data to keep the variables as factors
 ```{r}
-xg_boost_preds = 
+MH_data = read.table("MHpredict.csv", sep = ",", header = TRUE)
+MH_data$disType = as.factor(MH_data$disType)
+MH_data$Sexe = as.factor(MH_data$Sexe)
+MH_data$pedigree = as.factor(MH_data$pedigree)
+MH_data$alcohol = as.factor(MH_data$alcohol)
+MH_data$bTypeDep = as.factor(MH_data$bTypeDep)
+MH_data$bSocPhob = as.factor(MH_data$bSocPhob)
+MH_data$bGAD = as.factor(MH_data$bGAD)
+MH_data$bPanic = as.factor(MH_data$bPanic)
+MH_data$bAgo = as.factor(MH_data$bAgo)
+MH_data$RemDis = as.factor(MH_data$RemDis)
+MH_data$sample = as.factor(MH_data$sample)
+MH_data$ADuse = as.factor(MH_data$ADuse)
+MH_data$PsychTreat = as.factor(MH_data$PsychTreat)
+```
+
+```{r}
+trainMH = MH_data[rand_sample == TRUE,]
+testMH = MH_data[rand_sample == FALSE,]
+```
+
+```{r}
+elastic_net_final = glmnet(model.matrix(~ . -1, trainMH[,-21]), trainMH[,21], lambda = 0.1196, alpha = 1, standardize = TRUE)
+lasso_preds = predict(elastic_net_final, newx = model.matrix(~ . -1, testMH[,-21]))
+postResample(lasso_preds, testMH$dep_sev_fu)
+
+
+```
+
+```{r}
+importance = varImp(elastic_net_final, lambda = "lambda.min")
+importance_df =  as.data.frame(importance)
+importance_df$Variable = rownames(importance_df)
+
+importance_df = importance_df[order(-importance_df$Overall), ]
+
+importance_df
+```
+
+```{r}
+coefs = coef(elastic_net_final)
+coefs = coefs[order(-coefs[,"s0"]), ]
+coefs
+```
+## Question 7: A psychologist has seen David Edgar Pression for an intake today. The psychologist wonders whether they should refer David to an intensive depression treatment program. The results of David’s intake assessment are provided on Brightspace, in the file 'Patient.csv'. The psychologist asks you to provide them with an estimate of the severity of David’s depressive symptoms in 12 months. Patients with predicted depressive symptom severity equal to or greater than 17 are referred to the intensive treatment program.
+
+## What is your estimate? Should David be referred to the intensive treatment program? Bonus: Using a suitable approach, quantify the uncertainty of your estimate (not specifically taught during the lectures). (Use max. 100 words, max. 200 words including bonus.)
+
+```{r}
+pat_dat = read.table("Patient.csv", sep = ",", header = TRUE, stringsAsFactors = TRUE)
+for (i in char_vars){
+  pat_dat[,i] = factor(pat_dat[,i], levels = levels(MH_data[,i]))
+}
 
 ```
 
 
 
 ```{r}
-SHAP_plot_numeric$colour
+lasso_preds_pat = predict(elastic_net_final, newx = model.matrix(~ . -1, pat_dat[,-21]))
+
+test_mat_pat = xgb.DMatrix(data = as.matrix(pat_dat[,-21]))
+xg_preds_pat = predict(final_boost, newdata = test_mat_pat, type = "response")
+
+lasso_preds_pat
 
 ```
-
 
 
 # LEFTOVER CODE
