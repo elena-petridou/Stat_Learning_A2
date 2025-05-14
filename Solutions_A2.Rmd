@@ -13,6 +13,10 @@ library(caret)
 library(tidyr)
 library(dplyr)
 library(glmnet)
+library(corrplot)
+
+# install.packages("paran")
+library(paran)
 ```
 ## Question 1: Select one supervised learning method from those that were discussed in weeks 7 and 8 for analyzing this dataset. The chosen method must be different from the ones in Assignment 1! Justify why you would select this method for this specific prediction problem. (Use max. 200-250 words.)
 WRITE IN OVERLEAF
@@ -287,11 +291,66 @@ for (i in char_vars){
 ```{r}
 lasso_preds_pat = predict(elastic_net_final, newx = model.matrix(~ . -1, pat_dat[,-21]))
 
-test_mat_pat = xgb.DMatrix(data = as.matrix(pat_dat[,-21]))
-xg_preds_pat = predict(final_boost, newdata = test_mat_pat, type = "response")
 
 lasso_preds_pat
 
+```
+
+
+# PART B
+
+## Question 1: Do you think that reducing the variables to a smaller set of (new/derived) variables may be a good idea? Which statistical technique can be used to achieve such a dimension reduction? Explain why this technique is appropriate.
+
+```{r}
+US_data = read.csv("data.US.csv", header = TRUE)
+US_data = US_data[,-1]
+```
+
+
+```{r}
+colnames(US_data) = c("anxiety", "angry hostility", "depression", "self-consciousness", "impulsiveness", "vulnerability", "warmth", "gregariousness", "assertiveness", "activity", "excitement-seeking", "positive emotions", "fantasy", "aesthetics", "feelings", "ideas", "actions", "values", "trust", "straightforwardness", "altruism", "compliance", "modesty", "tendermindedness", "competence", "order", "dutifulness", "achievement striving", "self-discipline", "deliberation")
+
+cor_matrix = cor(US_data)
+corrplot(cor_matrix, method = "color")
+```
+## Question 2: How many new/derived variables should be computed to capture the most important part of the information in the original variables? Use at least four different methods to select the number of new/derived variables. Explain each method and thoroughly justify your final decision (e.g., by providing relevant figures).
+
+Check for NaN and construct principal components
+
+```{r}
+
+US_data[is.na.data.frame(US_data),]
+principal_components = prcomp(US_data[-1], scale = TRUE, center = TRUE)
+
+```
+
+
+```{r}
+summary(principal_components)
+```
+
+Inspect eigenvalues non-graphically
+```{r}
+eigenvalues = eigen(cor(US_data))
+eigenvalues$values
+
+```
+
+**Method 1: Scree Plots** to inspect variance explained by each component and the cumulative variance explained by the principal components produced up to that point
+
+```{r}
+variance_explained = summary(principal_components)$importance[2,]
+cumulative_variance_explained = summary(principal_components)$importance[3,]
+
+plot(variance_explained, type = "b", ylab = "Proportion of Variance Explained", xlim = c(1,10), xlab = "Number of Principal Components", main = "Variance Explained")
+plot(cumulative_variance_explained, type = "b", ylab = "Cumulative Proportion of Variance Explained", xlab = "Number of Principal Components", xlim = c(1,10), main = "Cumulative Variance Explained")
+```
+**Method 2: Horn's Parallel Analysis**
+
+In the tutorial exercises, we used parallel() from the nFactors library. However, I found that the package paran (https://cran.r-project.org/web/packages/paran/index.html) produced a more easily interpretable graph and plots, so I chose to use this package.
+
+```{r}
+paran(x = US_data, graph = TRUE)
 ```
 
 
