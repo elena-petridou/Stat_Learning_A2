@@ -292,6 +292,8 @@ for (i in char_vars){
 
 
 ```{r}
+elastic_net_for_pred = glmnet(model.matrix(~ . -1, MH_data[,-21]), MH_data[,21], lambda = 0.1196, alpha = 1, standardize = TRUE)
+
 lasso_preds_pat = predict(elastic_net_final, newx = model.matrix(~ . -1, pat_dat[,-21]))
 
 
@@ -470,13 +472,13 @@ plot(x = seq(1,10), y = within_ss, type = "b", xlim = c(1,10), xlab = "Number of
 
 
 ```{r}
-groups_2 = kmeans(pcas, 2, nstart = 200)
-plot(pcas, col = (groups_2$cluster + 1), main = "K-means clustering results with k = 2", pch = 20, cex = 2)
+groups_5 = kmeans(pcas, 5, nstart = 200)
+plot(pcas, col = (groups_5$cluster + 1), main = "K-means clustering results with k = 5", pch = 20, cex = 2)
 
 ```
 ```{r}
-groups_3 = kmeans(pcas, 3, nstart = 200)
-plot(pcas, col = (groups_3$cluster + 1), main = "K-means clustering results with k = 3", pch = 20, cex = 2)
+groups_3 = kmeans(pcas, 2, nstart = 200)
+plot(pcas, col = (groups_3$cluster + 1), main = "K-means clustering results with k = 2", pch = 20, cex = 2)
 
 ```
 
@@ -485,13 +487,13 @@ plot(pcas, col = (groups_3$cluster + 1), main = "K-means clustering results with
 Linkage Type: Complete 
 ```{r}
 complete = hclust(dist(pcas), method = "complete")
-plot(complete, main = "Complete Linkage", ylab = "Number of Groups")
+plot(complete, main = "Complete Linkage")
 abline(h = 5, col = "red")
 ```
 Linkage Type: Average
 ```{r}
-complete = hclust(dist(pcas), method = "average")
-plot(complete, main = "Average Linkage", ylab = "Number of Groups")
+average = hclust(dist(pcas), method = "average")
+plot(average, main = "Average Linkage")
 abline(h = 5, col = "red")
 ```
 
@@ -509,85 +511,63 @@ plot(m_clust, what = "classification")
 ```
 
 ```{r}
-
 summary(m_clust, parameters = TRUE)
 ```
 
-# LEFTOVER CODE
---------------------------------------------------------------------------------------------
-
-####### OPTION 2 ###########
-
+## Question 7: How large is each group?
 
 ```{r}
-final_boost_preds = predict(final_boost, newdata = test_mat_MH_data, type = "response")
+average_clusters = cutree(average, h = 5)
+average_clusters = as.factor(average_clusters)
+complete_clusters = as.factor(cutree(complete, h = 5))
+k_means_cluster = as.factor(groups_5$cluster)
+
+summary(average_clusters)
+summary(complete_clusters)
 ```
 
 ```{r}
-
+summary(k_means_cluster)
 ```
 
 ```{r}
-final_boost_preds
-```
-
-
-```{r cars}
-summary(cars)
-```
-
-
-
-Creating dummy variables in order to turn data into a matrix
-```{r}
-MHdata = data.frame(anxiety_distype = ifelse(MH_data$disType == "anxiety disorder", 1, 0),
-                    depression_distype = ifelse(MH_data$disType == "depressive disorder", 1, 0),
-                    comorbid_distype = ifelse(MH_data$disType == "comorbid disorder", 1, 0),
-                    female = ifelse(MH_data$Sexe == "female", 1, 0),
-                    male = ifelse(MH_data$Sexe == "female", 0, 1),
-                    pedigree_yes = ifelse(MH_data$pedigree == "Yes", 1, 0),
-                    pedigree_no = ifelse(MH_data$pedigree == "Yes", 0, 1),
-                    alcohol_no = ifelse(MH_data$alcohol == "Yes", 0, 1),
-                    alcohol_yes = ifelse(MH_data$alcohol == "Yes", 1, 0),
-                    recurrent_mdd = ifelse(MH_data$bTypeDep == "Recurrent MDD", 1, 0),
-                    first_onset_mdd = ifelse(MH_data$bTypeDep == "First onset MDD", 1, 0),
-                    dysthymia = ifelse(MH_data$bTypeDep == "Dysthymia", 1, 0),
-                    no_depression = ifelse(MH_data$bTypeDep == "No depressive disorder", 1, 0),
-                    soc_phob = ifelse(MH_data$bSocPhob == "Positive", 1, 0),
-                    gad = ifelse(MH_data$bGAD == "Positive", 1, 0),
-                    panic_disorder = ifelse(MH_data$bPanic == "Positive", 1, 0),
-                    agoraphobia = ifelse(MH_data$bAgo == "Positive", 1, 0),
-                    remission = ifelse(MH_data$RemDis == TRUE, 1, 0),
-                    general_pop_sample = ifelse(MH_data$sample == "General population", 1, 0),
-                    primary_care_sample = ifelse(MH_data$sample == "Primary care", 1, 0),
-                    special_care_sample = ifelse(MH_data$sample == "Specialised mental health care", 1, 0),
-                    antidepressants = ifelse(MH_data$ADuse == TRUE, 1, 0),
-                    receives_treatment = ifelse(MH_data$PsychTreat == TRUE, 1, 0),
-                    age = MH_data$Age,
-                    educ_years = MH_data$aedu,
-                    IDS = MH_data$IDS,
-                    BAI = MH_data$BAI, 
-                    FQ = MH_data$FQ,
-                    LCImax = MH_data$LCImax,
-                    age_onset = MH_data$AO
-)
-```
-
-
-**Fit an XG-boost tree ensemble using Caret**
-
-```{r}
-train_control = trainControl("cv", 10)
-cv_treeboost = train(dep_sev_fu ~ .,
-                 data = trainMH, method = "xgbTree",
-                 
-                 trControl = train_control, 
-                 preProcess = c("center", "scale"))
+sum(complete_clusters == k_means_cluster)
+sum(complete_clusters != k_means_cluster)
 ```
 
 ```{r}
-cv_treeboost$bestTune
-cv_treeboost$results
+sum(average_clusters == k_means_cluster)
+sum(average_clusters != k_means_cluster)
+```
+
+```{r}
+sum(complete_clusters == average_clusters)
+sum(complete_clusters != average_clusters)
+```
+
+
+## Question 9: What are the main differences between the groups in terms of personality (give a substantive interpretation of the obtained clustering)?
+
+```{r}
+clusters_for_datapoints = cbind(pcas, "cluster" = k_means_cluster)
+boxplot(PC1 ~ k_means_cluster, data = clusters_for_datapoints, xlab = "Cluster Assigned", col = hcl.colors(5))
+boxplot(PC2 ~ k_means_cluster, data = clusters_for_datapoints, xlab = "Cluster Assigned", col = hcl.colors(5))
+boxplot(PC3 ~ k_means_cluster, data = clusters_for_datapoints, xlab = "Cluster Assigned", col = hcl.colors(5))
+boxplot(PC4 ~ k_means_cluster, data = clusters_for_datapoints, xlab = "Cluster Assigned", col = hcl.colors(5))
+boxplot(PC5 ~ k_means_cluster, data = clusters_for_datapoints, xlab = "Cluster Assigned", col = hcl.colors(5))
+
+```
+
+Retrying with 3 means for last question
+
+```{r}
+k_means_cluster_2 = as.factor(groups_2$cluster)
+clusters_for_datapoints_2 = cbind(pcas, "cluster" = k_means_cluster_2)
+boxplot(PC1 ~ k_means_cluster_2, data = clusters_for_datapoints_2, xlab = "Cluster Assigned", col = hcl.colors(2))
+boxplot(PC2 ~ k_means_cluster_2, data = clusters_for_datapoints_2, xlab = "Cluster Assigned", col = hcl.colors(2))
+boxplot(PC3 ~ k_means_cluster_2, data = clusters_for_datapoints_2, xlab = "Cluster Assigned", col = hcl.colors(2))
+boxplot(PC4 ~ k_means_cluster_2, data = clusters_for_datapoints_2, xlab = "Cluster Assigned", col = hcl.colors(2))
+boxplot(PC5 ~ k_means_cluster_2, data = clusters_for_datapoints_2, xlab = "Cluster Assigned", col = hcl.colors(2))
 
 
 ```
