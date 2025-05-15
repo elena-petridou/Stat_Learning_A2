@@ -14,9 +14,12 @@ library(tidyr)
 library(dplyr)
 library(glmnet)
 library(corrplot)
+library(psych)
+
 
 # install.packages("paran")
 library(paran)
+
 ```
 ## Question 1: Select one supervised learning method from those that were discussed in weeks 7 and 8 for analyzing this dataset. The chosen method must be different from the ones in Assignment 1! Justify why you would select this method for this specific prediction problem. (Use max. 200-250 words.)
 WRITE IN OVERLEAF
@@ -304,15 +307,19 @@ lasso_preds_pat
 ```{r}
 US_data = read.csv("data.US.csv", header = TRUE)
 US_data = US_data[,-1]
+head(US_data)
 ```
 
 
 ```{r}
-colnames(US_data) = c("anxiety", "angry hostility", "depression", "self-consciousness", "impulsiveness", "vulnerability", "warmth", "gregariousness", "assertiveness", "activity", "excitement-seeking", "positive emotions", "fantasy", "aesthetics", "feelings", "ideas", "actions", "values", "trust", "straightforwardness", "altruism", "compliance", "modesty", "tendermindedness", "competence", "order", "dutifulness", "achievement striving", "self-discipline", "deliberation")
+var_names = c("anxiety", "angry hostility", "depression", "self-consciousness", "impulsiveness", "vulnerability", "warmth", "gregariousness", "assertiveness", "activity", "excitement-seeking", "positive emotions", "fantasy", "aesthetics", "feelings", "ideas", "actions", "values", "trust", "straightforwardness", "altruism", "compliance", "modesty", "tendermindedness", "competence", "order", "dutifulness", "achievement striving", "self-discipline", "deliberation")
+colnames(US_data) = var_names
 
 cor_matrix = cor(US_data)
 corrplot(cor_matrix, method = "color")
 ```
+
+
 ## Question 2: How many new/derived variables should be computed to capture the most important part of the information in the original variables? Use at least four different methods to select the number of new/derived variables. Explain each method and thoroughly justify your final decision (e.g., by providing relevant figures).
 
 Check for NaN and construct principal components
@@ -320,7 +327,7 @@ Check for NaN and construct principal components
 ```{r}
 
 US_data[is.na.data.frame(US_data),]
-principal_components = prcomp(US_data[-1], scale = TRUE, center = TRUE)
+principal_components = prcomp(US_data, scale = TRUE, center = TRUE)
 
 ```
 
@@ -353,6 +360,158 @@ In the tutorial exercises, we used parallel() from the nFactors library. However
 paran(x = US_data, graph = TRUE)
 ```
 
+**Method 3: Very Simple Structure**
+```{r}
+vss(cor(US_data), n = 15, rotate = "none", diagonal = FALSE, fm = "pc", line = TRUE)
+
+```
+
+
+
+**Method 4: Velicer's MAP**
+Reported Above
+
+## Question 3: Can you give a meaning to these new/derived variables?
+
+```{r}
+
+loadings = as.data.frame(principal_components$rotation)
+head(loadings[order(loadings$PC1),])
+
+```
+
+
+```{r}
+head(loadings[order(-loadings$PC1),])
+
+```
+
+
+
+```{r}
+head(loadings[order(-loadings$PC2),"PC2", drop = FALSE])
+
+```
+
+```{r}
+head(loadings[order(loadings$PC2),"PC2", drop = FALSE])
+
+```
+
+```{r}
+head(loadings[order(-loadings$PC3),"PC3", drop = FALSE])
+
+```
+
+
+```{r}
+head(loadings[order(loadings$PC3),"PC3", drop = FALSE])
+
+```
+
+```{r}
+head(loadings[order(-loadings$PC4),"PC4", drop = FALSE])
+
+```
+
+
+```{r}
+head(loadings[order(loadings$PC4),"PC4", drop = FALSE])
+
+```
+```{r}
+head(loadings[order(-loadings$PC5),"PC5", drop = FALSE])
+
+```
+
+
+```{r}
+head(loadings[order(loadings$PC5),"PC5", drop = FALSE])
+
+```
+
+## Question 4: Can you somehow quantify the degree to which the new/derived variables capture the information in the original variables?
+
+
+```{r}
+plot(cumulative_variance_explained, type = "b", ylab = "Cumulative Proportion of Variance Explained", xlab = "Number of Principal Components", xlim = c(1,5), main = "Cumulative Variance Explained")
+
+```
+```{r}
+squared_loadings = loadings[,c("PC1", "PC2", "PC3", "PC4", "PC5")]^2
+
+# Sum squared loadings by feature
+feature_contribution = rowSums(squared_loadings)
+feature_contribution = data.frame(Feature = rownames(squared_loadings), Contribution = feature_contribution)
+par(c())
+barplot(Contribution ~ Feature, data = feature_contribution, col = "darkgreen", horiz = TRUE, las = 1, cex.names = 0.5, xlim = c(0,0.3))
+```
+
+## Is it possible to group the study participants in terms of their personalities? To this end, use the new/derived variables (and not the original ones).
+
+## Question 5: Which statistical technique(s) can be used to group the participants? Explain why it is/they are appropriate.
+
+Explained in Overleaf
+
+## Question 6: How many groups are there? How did you determine this? Thoroughly justify your answer (e.g., figures). If you identified more than one technique in the previous question, choose two and compare the techniques and the obtained results.
+
+**Try k-means clustering with 10 possible groups**
+```{r}
+pcas = principal_components$x[,1:5]
+within_ss = numeric(10)
+
+for (i in seq(1:10)){
+  k.out = kmeans(pcas, i, nstart = 200)
+  within_ss[i] = k.out$tot.withinss
+}
+plot(x = seq(1,10), y = within_ss, type = "b", xlim = c(1,10), xlab = "Number of clusters (k)", ylab = "Within-cluster sum of squares")
+
+```
+
+
+```{r}
+groups_2 = kmeans(pcas, 2, nstart = 200)
+plot(pcas, col = (groups_2$cluster + 1), main = "K-means clustering results with k = 2", pch = 20, cex = 2)
+
+```
+```{r}
+groups_3 = kmeans(pcas, 3, nstart = 200)
+plot(pcas, col = (groups_3$cluster + 1), main = "K-means clustering results with k = 3", pch = 20, cex = 2)
+
+```
+
+
+**Hierarchical Clustering**
+Linkage Type: Complete 
+```{r}
+complete = hclust(dist(pcas), method = "complete")
+plot(complete, main = "Complete Linkage", ylab = "Number of Groups")
+abline(h = 5, col = "red")
+```
+Linkage Type: Average
+```{r}
+complete = hclust(dist(pcas), method = "average")
+plot(complete, main = "Average Linkage", ylab = "Number of Groups")
+abline(h = 5, col = "red")
+```
+
+```{r}
+#install.packages("mclust")
+library(mclust)
+m_clust = Mclust(pcas[,1:5])
+```
+
+```{r}
+plot(m_clust, what = "BIC")
+
+plot(m_clust, what = "classification")
+
+```
+
+```{r}
+
+summary(m_clust, parameters = TRUE)
+```
 
 # LEFTOVER CODE
 --------------------------------------------------------------------------------------------
